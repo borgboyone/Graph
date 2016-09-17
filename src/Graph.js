@@ -33,12 +33,12 @@ function _isComplex(vertices) {
 var Polygon = root.aw.Graph.Polygon =
 	(function() {
 		function Polygon(vertices) {
-			if (!Array.isArray(vertices)) throw new Error("Parameter 1 (vertices) must be an array");
+			if (!Array.isArray(vertices)) throw new Error("Parameter 1 (vertices) of Polygon.constructor must be an array");
 			vertices.forEach(function(vertex) {
-				if (!Point.isInstance(vertex)) throw new Error("Parameter 1 (vertices) must be an array of Point");
+				if (!Point.isInstance(vertex)) throw new Error("Parameter 1 (vertices) of Polygon.constructor must be an array of Point");
 			});
-			if (vertices.length < 3) throw new Error("At least three vertices are required for a Polygon");
-			if (_isComplex(vertices)) throw new Error("Complex polygons are not supported");
+			if (vertices.length < 3) throw new Error("Polygon.constructor: At least three vertices are required for a Polygon");
+			if (_isComplex(vertices)) throw new Error("Polygon.constructor: Complex polygons are not supported");
 			this.vertices = vertices;
 		}
 		var objectProto = {
@@ -100,7 +100,7 @@ var Polygon = root.aw.Graph.Polygon =
 
 				return new Rectangle(p0X, p0Y, p1X - p0X, p1Y - p0Y);
 			},
-			//intersects: function(primitive => point, lineSegment, rectangle, polygon)
+			// TODO: intersects: function(primitive => point, lineSegment, rectangle, polygon)
 /*			containsPolygon: function(polygon) {
 				// TODO: 
 			},
@@ -151,6 +151,7 @@ var Polygon = root.aw.Graph.Polygon =
 				if (Point.isInstance(intersection)) return intersection;
 				return Point.isInstance(intersection) ? intersection : (Point.distance(center, intersection.p0) > Point.distance(center, intersection.p1) ? intersection.p0 : intersection.p1);
 				// maybe find a faster way that going through all the sides
+				this.vertices[i], this.vertices[(i+1) % this.vertices.length]
 /*				for (var i = 0, j = this.vertices.length - 1; i < this.vertices.length; j = i++) {
 					var intersection = lineSegment.intersects(new LineSegment(this.vertices[j], this.vertices[i]));
 					if (intersection !== null) {
@@ -162,10 +163,37 @@ var Polygon = root.aw.Graph.Polygon =
 				}*/
 			},
 			clone: function() {
-				// slice, make sure to clone the points as well
+				return new Polygon(this.vertices.map(function(vertex) { return vertex.clone(); }));
+			},
+			rotate: function(angle, center) {
+				if (typeof angle !== 'number') throw new Error("Parameter 1 (angle) of Polygon.rotate must be of type number");
+				if ((typeof center !== 'undefined') && !Point.isInstance(center)) throw new Error("Parameter 2 (center) of Polygon.rotate must be of type Point");
+				if ((typeof center !== 'undefined') && !this.containsPoint(center)) throw new Error("Polygon.scale: Specified center must be contained in the Polygon");
+
+				var center = typeof center === 'undefined' ? this.getCentroid() : center;
+				for(var i = 0; i < this.vertices.length; i++) {
+					var pointX = this.vertices[i].x - center.x,
+						pointY = this.vertices[i].y - center.y;
+					pointX = pointX * Math.cos(angle) - pointY * Math.sin(angle);
+					pointY = pointY * Math.cos(angle) + pointX * Math.sin(angle);
+					this.vertices[i] = new Point(pointX + center.x, pointY + center.y);
+				}
+			},
+			scale: function(scaleX, scaleY, center) {
+				if (typeof scaleX !== 'number') throw new Error("Parameter 1 (scaleX) of Polygon.scale must be of type number");
+				if (typeof scaleY !== 'number') throw new Error("Parameter 2 (scaleY) of Polygon.scale must be of type number");
+				if ((typeof center !== 'undefined') && !Point.isInstance(center)) throw new Error("Parameter 3 (center) of Polygon.scale must be of type Point");
+				if (scaleX == 0) throw new Error("Polygon.scale: Specified scaleX must not be a zero value");
+				if (scaleY == 0) throw new Error("Polygon.scale: Specified scaleY must not be a zero value");
+				if ((typeof center !== 'undefined') && !this.containsPoint(center)) throw new Error("Polygon.scale: Specified center must be contained in the Polygon");
+
+				var center = typeof center === 'undefined' ? this.getCentroid() : center;
+
+				for(var i = 0; i < this.vertices.length; i++) {
+					this.vertices[i] = new Point(pointX = scaleX * (this.vertices[i].x - center.x) + center.x,
+						scaleY * (this.vertices[i].y - center.y) + center.y);
+				}
 			}
-			//rotate(degrees[, center])
-			//scale(x, y[, center])
 			//getBoundingCircle
 		};
 
@@ -533,6 +561,11 @@ var LineSegment = root.aw.Graph.LineSegment =
 			}, /* intersects */
 			clone: function() {
 				return new LineSegment(this.p0.clone(), this.p1.clone());
+			},
+			equals: function(lineSegment) {
+				if (!LineSegment.isInstance(lineSegment)) throw new Error("Parameter 1 (lineSegment) of LineSegment.equals must be of type LineSegment");
+
+				return (this.p0.equals(lineSegment.p0) && this.p1.equals(lineSegment.p1)) || (this.p0.equals(lineSegment.p1) && this.p1.equals(lineSegment.p0));
 			}
 		}
 		LineSegment.prototype = objectProto;
