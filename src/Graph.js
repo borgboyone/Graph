@@ -151,8 +151,8 @@ var Polygon = root.aw.Graph.Polygon =
 				if (Point.isInstance(intersection)) return intersection;
 				return Point.isInstance(intersection) ? intersection : (Point.distance(center, intersection.p0) > Point.distance(center, intersection.p1) ? intersection.p0 : intersection.p1);
 				// maybe find a faster way that going through all the sides
-				this.vertices[i], this.vertices[(i+1) % this.vertices.length]
-/*				for (var i = 0, j = this.vertices.length - 1; i < this.vertices.length; j = i++) {
+/*				this.vertices[i], this.vertices[(i+1) % this.vertices.length]
+				for (var i = 0, j = this.vertices.length - 1; i < this.vertices.length; j = i++) {
 					var intersection = lineSegment.intersects(new LineSegment(this.vertices[j], this.vertices[i]));
 					if (intersection !== null) {
 						if (Point.isInstance(intersection))
@@ -173,10 +173,11 @@ var Polygon = root.aw.Graph.Polygon =
 				var center = typeof center === 'undefined' ? this.getCentroid() : center;
 				for(var i = 0; i < this.vertices.length; i++) {
 					var pointX = this.vertices[i].x - center.x,
-						pointY = this.vertices[i].y - center.y;
-					pointX = pointX * Math.cos(angle) - pointY * Math.sin(angle);
-					pointY = pointY * Math.cos(angle) + pointX * Math.sin(angle);
-					this.vertices[i] = new Point(pointX + center.x, pointY + center.y);
+						pointY = this.vertices[i].y - center.y,
+						pointXr = pointX * Math.cos(angle) - pointY * Math.sin(angle),
+						pointYr = pointY * Math.cos(angle) + pointX * Math.sin(angle);
+
+					this.vertices[i] = new Point(pointXr + center.x, pointYr + center.y);
 				}
 			},
 			scale: function(scaleX, scaleY, center) {
