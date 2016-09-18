@@ -18,6 +18,8 @@ root.aw.Graph = root.aw.Graph || {};
 
 root.aw.Graph.version = '1.0.0';
 
+// CONSIDER: root.aw.Graph.epsilon = 1e-15; for equals comparison
+
 function _isComplex(vertices) {
 	for (var i = 0; i < vertices.length - 2; i++) {
 		for (var j = i + 2; j < vertices.length; j++) {
@@ -28,6 +30,10 @@ function _isComplex(vertices) {
 		}
 	}
 	return false;
+}
+
+function _isNumber(number) {
+	return typeof number === 'number' && !isNaN(number);
 }
 
 var Polygon = root.aw.Graph.Polygon =
@@ -207,14 +213,14 @@ var Polygon = root.aw.Graph.Polygon =
 		return Polygon;
 	})();
 
-var Point = root.aw.Graph.Point =
+var Point = root.aw.Graph.Point = // Point2D
 	(function() {
 		var Point = function(x, y) {
 			if (!(this instanceof Point))
 				throw new Error("Point called in static context; use new Point() instead");
 
-			if (typeof x !== 'number') throw new Error("Parameter 1 (x) of Point.constructor must be of type number");
-			if (typeof y !== 'number') throw new Error("Parameter 2 (y) of Point.constructor must be of type number");
+			if (!_isNumber(x)) throw new Error("Parameter 1 (x) of Point.constructor must be of type number");
+			if (!_isNumber(y)) throw new Error("Parameter 2 (y) of Point.constructor must be of type number");
 			this.x = x;
 			this.y = y;
 			Object.freeze(this);
@@ -235,8 +241,8 @@ var Point = root.aw.Graph.Point =
 			return typeof point == 'object' && point.constructor == Point;
 		};
 		Point.distance = function(p0, p1) {
-			if (!Point.isInstance(p0)) throw new Error("Parameter 1 (p0) must be of type Point");
-			if (!Point.isInstance(p1)) throw new Error("Parameter 2 (p1) must be of type Point");
+			if (!Point.isInstance(p0)) throw new Error("Parameter 1 (p0) of Point.distance must be of type Point");
+			if (!Point.isInstance(p1)) throw new Error("Parameter 2 (p1) of Point.distance must be of type Point");
 
 			return Math.sqrt(Math.pow(p1.x - p0.x, 2) + Math.pow(p1.y - p0.y, 2));
 		};
@@ -244,7 +250,7 @@ var Point = root.aw.Graph.Point =
 		return Point;
 	})();
 
-var Vector = root.aw.Graph.Vector =
+var Vector = root.aw.Graph.Vector = // Vector2D
 	(function() {
 		var Vector = function() {
 			if (!(this instanceof Vector))
@@ -270,15 +276,31 @@ var Vector = root.aw.Graph.Vector =
 		}
 		var objectProto = {
 			add: function(vector) {
-
+				// TODO: check is vector
+				this.i += vector.i;
+				this.j += vector.j;
+				return this;
 			},
 			subtract: function(vector) {
-
+				// TODO: check is vector
+				this.i -= vector.i;
+				this.j -= vector.j;
+				return this;
 			},
 			scale: function(factor) {
-
+				// TODO: is number
+				this.i *= factor;
+				this.j *= factor;
+				return this;
 			},
-			unit: function() {
+			normalize: function() {
+				var magnitude = this.magnitude();
+				if (magnitude == 0) throw new Error("Vector.normalize: Attempting to normalize vector with zero magnitude");
+				this.i /= magnitude;
+				this.j /= magnitude;
+				return this;
+			},
+			magnitude: function() {
 
 			},
 			equals: function(vector) {
@@ -470,24 +492,30 @@ var Ellipse = root.aw.Graph.Ellipse =
 		return Ellipse;
 	})();
 
-var LineSegment = root.aw.Graph.LineSegment =
+var LineSegment = root.aw.Graph.LineSegment = // LineSegment2D
 	(function() {
-		function LineSegment(p0, p1) {
+		var LineSegment = function(p0, p1) {
+			if (!(this instanceof LineSegment))
+				throw new Error("LineSegment called in static context; use new LineSegment() instead");
+			if (!Point.isInstance(p0)) throw new Error("Parameter 1 (p0) of LineSegment.constructor must be of type Point");
+			if (!Point.isInstance(p1)) throw new Error("Parameter 2 (p1) of LineSegment.constructor must be of type Point");
 			this.p0 = p0;
 			this.p1 = p1;
+			// CONSIDER: immutable
 		}
 
 		var objectProto = {
 			containsPoint: function(point) {
 				if (!Point.isInstance(point)) throw new Error("Parameter 1 (point) must be of type Point");
 
-				var u = new Vector(this),
-					v = new Vector(point),
-					w = new Vector(point, this.p0);
-					//d = Vector.crossProduct(u, v);
+				/*var u = new Vector(this),
+					//v = new Vector(point),
+					w = new Vector(this.p0, point);*/
 
-				//if (d !== 0) return false;
-				if ((Vector.crossProduct(u, w) !== 0) || (Vector.crossProduct(v, w) !== 0)) return false;
+				if ((this.p1.x - this.p0.x) * (point.y - this.p0.y) - (point.x - this.p0.x) * (this.p1.y - this.p0.y) != 0) return false;
+				// same as
+				// if (Vector.crossProduct(u, w) != 0) return false;
+				// Questionable: if (((Vector.crossProduct(u, w) != 0) || (Vector.crossProduct(v, w) != 0))) return false;
 
 				if (this.p0.x != this.p1.x) {
 					if ((this.p0.x <= point.x && point.x <= this.p1.x) || (point.x <= this.p0.x && this.p1.x <= point.x)) return true;
@@ -498,7 +526,7 @@ var LineSegment = root.aw.Graph.LineSegment =
 			},
 			intersects: function(lineSegment) {
 				if (!(LineSegment.isInstance(lineSegment) || Point.isInstance(lineSegment))) throw new Error("Parameter 1 (point or lineSegment) must be of type Point or LineSegment");
-				if (Point.isInstance(lineSegment)) lineSegment = new LineSegment(lineSegment, lineSegment);
+				if (Point.isInstance(lineSegment)) lineSegment = new LineSegment(lineSegment, lineSegment); // change this to return this.containsPoint(lineSegment) ? lineSegment.clone() : null;
 
 				var u = new Vector(this),
 					v = new Vector(lineSegment),
@@ -560,6 +588,9 @@ var LineSegment = root.aw.Graph.LineSegment =
 				// (new Vector(this.po).add(u.scale(i)).toPoint();X
 				return new Point(this.p0.x + i * u.i, this.p0.y + i * u.j);
 			}, /* intersects */
+			length: function() {
+				return Math.sqrt(Math.pow(this.p1.x - this.p0.x, 2) + Math.pow(this.p1.y - this.p0.y, 2));
+			},
 			clone: function() {
 				return new LineSegment(this.p0.clone(), this.p1.clone());
 			},
