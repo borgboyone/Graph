@@ -128,7 +128,6 @@
 		contains: [[-1,0], [-1,0.5], [-1,1]]
 	};
 	test(function() {
-		console.log("Secondary");
 		var ls = new aw.Graph.LineSegment(new aw.Graph.Point(lsTest2.p0[0],lsTest2.p0[1]), new aw.Graph.Point(lsTest2.p1[0],lsTest2.p1[1]));
 		lsTest2.contains.forEach(function(pointArray){
 			var point = new aw.Graph.Point(pointArray[0], pointArray[1]);
@@ -194,5 +193,3 @@
 	Polygon
 	polygon = new aw.Graph.Polygon([new aw.Graph.Point(-1, -1), new aw.Graph.Point(-1, 1), new aw.Graph.Point(0, 1), new aw.Graph.Point(0, 0), new aw.Graph.Point(1, 0), new aw.Graph.Point(1, -1)]);
 	Ellipse*/
-
-/* Haven't dug through my GitHub pages yet?  Check out .  Who knows what treasures you might find. */

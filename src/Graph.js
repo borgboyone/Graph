@@ -18,7 +18,7 @@ root.aw.Graph = root.aw.Graph || {};
 
 root.aw.Graph.version = '1.0.0';
 
-// CONSIDER: root.aw.Graph.epsilon = 1e-15; for equals comparison
+// CONSIDER: root.aw.Graph.epsilon/tolerance = 1e-15; for equals comparison
 
 function _isComplex(vertices) {
 	for (var i = 0; i < vertices.length - 2; i++) {
@@ -106,7 +106,7 @@ var Polygon = root.aw.Graph.Polygon =
 
 				return new Rectangle(p0X, p0Y, p1X - p0X, p1Y - p0Y);
 			},
-			// TODO: intersects: function(primitive => point, lineSegment, rectangle, polygon)
+			// TODO: intersects: function(primitive => point, lineSegment, rectangle, polygon, ellipse)
 /*			containsPolygon: function(polygon) {
 				// TODO: 
 			},
@@ -152,7 +152,6 @@ var Polygon = root.aw.Graph.Polygon =
 				var center = typeof center === 'undefined' ? this.getCentroid() : center,
 					lineSegment = new LineSegment(center, point);
 
-				// migrate to intersects() => array[0]
 				var intersection = this.intersects(lineSegment)[0];
 				if (Point.isInstance(intersection)) return intersection;
 				return Point.isInstance(intersection) ? intersection : (Point.distance(center, intersection.p0) > Point.distance(center, intersection.p1) ? intersection.p0 : intersection.p1);
@@ -250,6 +249,123 @@ var Point = root.aw.Graph.Point = // Point2D
 		return Point;
 	})();
 
+var LineSegment = root.aw.Graph.LineSegment = // LineSegment2D
+	(function() {
+		var LineSegment = function(p0, p1) {
+			if (!(this instanceof LineSegment))
+				throw new Error("LineSegment called in static context; use new LineSegment() instead");
+			if (!Point.isInstance(p0)) throw new Error("Parameter 1 (p0) of LineSegment.constructor must be of type Point");
+			if (!Point.isInstance(p1)) throw new Error("Parameter 2 (p1) of LineSegment.constructor must be of type Point");
+			this.p0 = p0;
+			this.p1 = p1;
+			Object.freeze(this);
+		}
+
+		var objectProto = {
+			containsPoint: function(point) {
+				if (!Point.isInstance(point)) throw new Error("Parameter 1 (point) must be of type Point");
+
+				/*var u = new Vector(this),
+					//v = new Vector(point),
+					w = new Vector(this.p0, point);*/
+
+				if ((this.p1.x - this.p0.x) * (point.y - this.p0.y) - (point.x - this.p0.x) * (this.p1.y - this.p0.y) != 0) return false;
+				// same as
+				// if (Vector.crossProduct(u, w) != 0) return false; if (Vector.crossProduct(u = new Vector(a, b), new Vector(u, new Vector(a, p))) != 0) return false;
+				// Questionable: if (((Vector.crossProduct(u, w) != 0) || (Vector.crossProduct(v, w) != 0))) return false;
+
+				if (this.p0.x != this.p1.x) {
+					if ((this.p0.x <= point.x && point.x <= this.p1.x) || (point.x <= this.p0.x && this.p1.x <= point.x)) return true;
+				} else {
+					if ((this.p0.y <= point.y && point.y <= this.p1.y) || (point.y <= this.p0.y && this.p1.y <= point.y)) return true;
+				}
+				return false;
+			},
+			intersects: function(lineSegment) {
+				if (!(LineSegment.isInstance(lineSegment) || Point.isInstance(lineSegment))) throw new Error("Parameter 1 (point or lineSegment) must be of type Point or LineSegment");
+				if (Point.isInstance(lineSegment)) return this.containsPoint(lineSegment) ? lineSegment.clone() : null;
+
+				var u = new Vector(this),
+					v = new Vector(lineSegment),
+					w = new Vector(lineSegment.p0, this.p0),
+					denominator = Vector.crossProduct(u, v),
+					numerator = Vector.crossProduct(u, w);
+
+				if (denominator == 0) {
+					if (numerator != 0) // might need to do v, w as well check this || Vector.crossProduct(v, w) != 0
+						return null; // parallel
+
+					var d0 = this.p0.equals(this.p1),
+					d1 = lineSegment.p0.equals(lineSegment.p1);
+					if (d0 && d1) {
+							if (this.p0.equals(lineSegment.p0))
+								return lineSegment.p0; // same points
+							else
+								return null; // different points
+					}
+					if (d0) {
+						if (lineSegment.containsPoint(this.p0)) {
+							return this.p0;
+						} else
+							return null;
+					}
+					if (d1) {
+						if (this.containsPoint(lineSegment.p0)) {
+							return lineSegment.p0;
+						} else
+							return null;
+					}
+
+					// they are colinear
+					var t0 = 0.0, t1 = 0.0, w2 = new Vector(lineSegment.p0, this.p1);
+					if (v.i != 0) {
+						t0 = w.i / v.i;
+						t1 = w2.i / v.i;
+					} else {
+						t0 = w.j / v.j;
+						t1 = w2.j / v.j;
+					}
+					if (t0 > t1) t1 = [t0, t0 = t1][0];
+					// TODO: is clipping necessary? Can we normalize the vectors to prevent this?
+					t0 = t0<0? 0 : t0;
+					t1 = t1>1? 1 : t1;
+ 					if (t0 > 1 || t1 < 0) return null;
+					if (t0 == t1) { // intersect is a point
+						return new Point(lineSegment.p0.x + t0 * v.i, lineSegment.p0.y + t0 * v.j);
+					}
+					return new LineSegment(new Point(lineSegment.p0.x + t0 * v.i, lineSegment.p0.y + t0 * v.j), new Point(lineSegment.p0.x + t1 * v.i, lineSegment.p0.y + t1 * v.j))
+				}
+
+				var i = Vector.crossProduct(v, w) / denominator; //Vector.crossProduct(v, w) / denominator;
+				//if (!Number.[in]range(i, 0, 1)) return null;
+				if (!((i >= 0) && (i <= 1))) return null;
+				var i2 = Vector.crossProduct(u, w) / denominator;
+				if (!((i2 >= 0) && (i2 <= 1))) return null;//Number.range(i2, 0, 1)) return null;
+				//this.p0 + i * u <= can we do some Vector.add, scale functions?
+				// (new Vector(this.po).add(u.scale(i)).toPoint();X
+				return new Point(this.p0.x + i * u.i, this.p0.y + i * u.j);
+			}, /* intersects */
+			length: function() {
+				return Math.sqrt(Math.pow(this.p1.x - this.p0.x, 2) + Math.pow(this.p1.y - this.p0.y, 2));
+			},
+			clone: function() {
+				return new LineSegment(this.p0.clone(), this.p1.clone());
+			},
+			equals: function(lineSegment) {
+				if (!LineSegment.isInstance(lineSegment)) throw new Error("Parameter 1 (lineSegment) of LineSegment.equals must be of type LineSegment");
+
+				return (this.p0.equals(lineSegment.p0) && this.p1.equals(lineSegment.p1)) || (this.p0.equals(lineSegment.p1) && this.p1.equals(lineSegment.p0));
+			}
+		}
+		LineSegment.prototype = objectProto;
+		LineSegment.prototype.constructor = LineSegment;
+		LineSegment.isInstance = function(lineSegment) {
+			return typeof lineSegment == 'object' && lineSegment.constructor == LineSegment;
+		};
+
+		return LineSegment;
+	})();
+
 var Vector = root.aw.Graph.Vector = // Vector2D
 	(function() {
 		var Vector = function() {
@@ -267,6 +383,7 @@ var Vector = root.aw.Graph.Vector = // Vector2D
 					this.j = point.p1.y - point.p0.y;
 				}
 			} else if (arguments.length == 2) {
+				// TODO: Number, Number
 				var p0 = arguments[0], p1 = arguments[1];
 				if (!Point.isInstance(p0)) throw new Error("Parameter 1 (p0) must be of type Point");
 				if (!Point.isInstance(p1)) throw new Error("Parameter 2 (p1) must be of type Point");
@@ -276,19 +393,19 @@ var Vector = root.aw.Graph.Vector = // Vector2D
 		}
 		var objectProto = {
 			add: function(vector) {
-				// TODO: check is vector
+				if (!Vector.isInstance(vector)) throw new Error("Parameter 1 (vector) of Vector.add must be of type Vector");
 				this.i += vector.i;
 				this.j += vector.j;
 				return this;
 			},
 			subtract: function(vector) {
-				// TODO: check is vector
+				if (!Vector.isInstance(vector)) throw new Error("Parameter 1 (vector) of Vector.subtract must be of type Vector");
 				this.i -= vector.i;
 				this.j -= vector.j;
 				return this;
 			},
 			scale: function(factor) {
-				// TODO: is number
+				if (!_isNumber(factor)) throw new Error("Parameter 1 (factor) of Vector.scale must be of type number");
 				this.i *= factor;
 				this.j *= factor;
 				return this;
@@ -301,10 +418,10 @@ var Vector = root.aw.Graph.Vector = // Vector2D
 				return this;
 			},
 			magnitude: function() {
-
+				return Math.sqrt(Math.pow(this.i, 2) + Math.pow(this.j, 2));
 			},
 			equals: function(vector) {
-				if (!Vector.isInstance(vector)) throw new Error("Parameter 1 (vector) must be of type Vector");
+				if (!Vector.isInstance(vector)) throw new Error("Parameter 1 (vector) of Vector.equals must be of type Vector");
 				return this.i === vector.i && this.j === vector.j;
 			},
 			clone: function() {
@@ -332,7 +449,7 @@ var Vector = root.aw.Graph.Vector = // Vector2D
 
 var Rectangle = root.aw.Graph.Rectangle =
 	(function() {
-		var Rectangle = function(x, y, width, height) { // also accept p0, p1
+		var Rectangle = function(x, y, width, height) { // also accepts p0, p1
 			if (!(this instanceof Rectangle))
 				throw new Error("Rectangle called in static context; use new Rectangle() instead");
 			if (arguments.length == 2) {
@@ -490,123 +607,6 @@ var Ellipse = root.aw.Graph.Ellipse =
 		}
 
 		return Ellipse;
-	})();
-
-var LineSegment = root.aw.Graph.LineSegment = // LineSegment2D
-	(function() {
-		var LineSegment = function(p0, p1) {
-			if (!(this instanceof LineSegment))
-				throw new Error("LineSegment called in static context; use new LineSegment() instead");
-			if (!Point.isInstance(p0)) throw new Error("Parameter 1 (p0) of LineSegment.constructor must be of type Point");
-			if (!Point.isInstance(p1)) throw new Error("Parameter 2 (p1) of LineSegment.constructor must be of type Point");
-			this.p0 = p0;
-			this.p1 = p1;
-			// CONSIDER: immutable
-		}
-
-		var objectProto = {
-			containsPoint: function(point) {
-				if (!Point.isInstance(point)) throw new Error("Parameter 1 (point) must be of type Point");
-
-				/*var u = new Vector(this),
-					//v = new Vector(point),
-					w = new Vector(this.p0, point);*/
-
-				if ((this.p1.x - this.p0.x) * (point.y - this.p0.y) - (point.x - this.p0.x) * (this.p1.y - this.p0.y) != 0) return false;
-				// same as
-				// if (Vector.crossProduct(u, w) != 0) return false;
-				// Questionable: if (((Vector.crossProduct(u, w) != 0) || (Vector.crossProduct(v, w) != 0))) return false;
-
-				if (this.p0.x != this.p1.x) {
-					if ((this.p0.x <= point.x && point.x <= this.p1.x) || (point.x <= this.p0.x && this.p1.x <= point.x)) return true;
-				} else {
-					if ((this.p0.y <= point.y && point.y <= this.p1.y) || (point.y <= this.p0.y && this.p1.y <= point.y)) return true;
-				}
-				return false;
-			},
-			intersects: function(lineSegment) {
-				if (!(LineSegment.isInstance(lineSegment) || Point.isInstance(lineSegment))) throw new Error("Parameter 1 (point or lineSegment) must be of type Point or LineSegment");
-				if (Point.isInstance(lineSegment)) lineSegment = new LineSegment(lineSegment, lineSegment); // change this to return this.containsPoint(lineSegment) ? lineSegment.clone() : null;
-
-				var u = new Vector(this),
-					v = new Vector(lineSegment),
-					w = new Vector(lineSegment.p0, this.p0),
-					denominator = Vector.crossProduct(u, v),
-					numerator = Vector.crossProduct(u, w);
-
-				if (denominator == 0) {
-					if (numerator != 0) // might need to do v, w as well check this || Vector.crossProduct(v, w) != 0
-						return null; // parallel
-
-					var d0 = this.p0.equals(this.p1),
-					d1 = lineSegment.p0.equals(lineSegment.p1);
-					if (d0 && d1) {
-							if (this.p0.equals(lineSegment.p0))
-								return lineSegment.p0; // same points
-							else
-								return null; // different points
-					}
-					if (d0) {
-						if (lineSegment.containsPoint(this.p0)) {
-							return this.p0;
-						} else
-							return null;
-					}
-					if (d1) {
-						if (this.containsPoint(lineSegment.p0)) {
-							return lineSegment.p0;
-						} else
-							return null;
-					}
-
-					// they are colinear
-					var t0 = 0.0, t1 = 0.0, w2 = new Vector(lineSegment.p0, this.p1);
-					if (v.i != 0) {
-						t0 = w.i / v.i;
-						t1 = w2.i / v.i;
-					} else {
-						t0 = w.j / v.j;
-						t1 = w2.j / v.j;
-					}
-					if (t0 > t1) t1 = [t0, t0 = t1][0];
-					// TODO: is clipping necessary? Can we normalize the vectors to prevent this?
-					t0 = t0<0? 0 : t0;
-					t1 = t1>1? 1 : t1;
- 					if (t0 > 1 || t1 < 0) return null;
-					if (t0 == t1) { // intersect is a point
-						return new Point(lineSegment.p0.x + t0 * v.i, lineSegment.p0.y + t0 * v.j);
-					}
-					return new LineSegment(new Point(lineSegment.p0.x + t0 * v.i, lineSegment.p0.y + t0 * v.j), new Point(lineSegment.p0.x + t1 * v.i, lineSegment.p0.y + t1 * v.j))
-				}
-
-				var i = Vector.crossProduct(v, w) / denominator; //Vector.crossProduct(v, w) / denominator;
-				//if (!Number.[in]range(i, 0, 1)) return null;
-				if (!((i >= 0) && (i <= 1))) return null;
-				var i2 = Vector.crossProduct(u, w) / denominator;
-				if (!((i2 >= 0) && (i2 <= 1))) return null;//Number.range(i2, 0, 1)) return null;
-				//this.p0 + i * u <= can we do some Vector.add, scale functions?
-				// (new Vector(this.po).add(u.scale(i)).toPoint();X
-				return new Point(this.p0.x + i * u.i, this.p0.y + i * u.j);
-			}, /* intersects */
-			length: function() {
-				return Math.sqrt(Math.pow(this.p1.x - this.p0.x, 2) + Math.pow(this.p1.y - this.p0.y, 2));
-			},
-			clone: function() {
-				return new LineSegment(this.p0.clone(), this.p1.clone());
-			},
-			equals: function(lineSegment) {
-				if (!LineSegment.isInstance(lineSegment)) throw new Error("Parameter 1 (lineSegment) of LineSegment.equals must be of type LineSegment");
-
-				return (this.p0.equals(lineSegment.p0) && this.p1.equals(lineSegment.p1)) || (this.p0.equals(lineSegment.p1) && this.p1.equals(lineSegment.p0));
-			}
-		}
-		LineSegment.prototype = objectProto;
-		LineSegment.prototype.constructor = LineSegment;
-		LineSegment.isInstance = function(lineSegment) {
-			return typeof lineSegment == 'object' && lineSegment.constructor == LineSegment;
-		};
-
-		return LineSegment;
 	})();
 
 }.call(this));
